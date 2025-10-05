@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 import typing
 
+from dotenv import load_dotenv
+load_dotenv()
+
 class APIResponse(BaseModel):
     status: int
     status_text: str
