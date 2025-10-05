@@ -13,7 +13,7 @@ K-PaaS 2025를 위한 강아지 편지 생성 이미지 서비스입니다. 강�
 - ☁️ NCloud Object Storage 통합
 - 📝 구조화된 API 응답
 
-## 🛠️ 설치 및 설정
+## 설치 및 설정
 
 ### 필수 요구사항
 - Python 3.12+
@@ -85,10 +85,45 @@ Content-Type: multipart/form-data
 **입력 파라미터:**
 - `file`: 강아지 이미지 파일 (JPG, PNG 등)
 
-**요청 예시 (curl):**
-```bash
-curl -X POST "http://localhost:1110/image-service/generate-letter" \
-  -F "file=@my_dog.jpg"
+**요청 예시 (Java):**
+```java
+import java.io.*;
+import java.net.http.*;
+import java.nio.file.*;
+
+public class DogLetterClient {
+    public static void main(String[] args) throws Exception {
+        String url = "http://localhost:1110/image-service/generate-letter";
+        Path imagePath = Paths.get("my_dog.jpg");
+
+        // 멀티파트 바디 생성
+        String boundary = "----boundary" + System.currentTimeMillis();
+        String CRLF = "\r\n";
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(("--" + boundary + CRLF).getBytes());
+        baos.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" +
+                   imagePath.getFileName() + "\"" + CRLF).getBytes());
+        baos.write(("Content-Type: image/jpeg" + CRLF + CRLF).getBytes());
+        baos.write(Files.readAllBytes(imagePath));
+        baos.write((CRLF + "--" + boundary + "--" + CRLF).getBytes());
+
+        // HTTP 요청 생성
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+            .POST(HttpRequest.BodyPublishers.ofByteArray(baos.toByteArray()))
+            .build();
+
+        // 요청 전송 및 응답 처리
+        HttpResponse<String> response = client.send(request,
+            HttpResponse.BodyHandlers.ofString());
+
+        System.out.println("Status: " + response.statusCode());
+        System.out.println("Response: " + response.body());
+    }
+}
 ```
 
 **응답 예시:**
