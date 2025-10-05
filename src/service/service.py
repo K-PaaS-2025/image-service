@@ -1,5 +1,7 @@
 import logging
 import io
+import uuid
+import os
 from typing import Optional, Tuple
 
 from ..data import storage
@@ -9,9 +11,11 @@ logger = logging.getLogger(__name__)
 
 def generate_letter_with_image(image_data: bytes, filename: str) -> Optional[Tuple[str, str]]:
     try:
-        # generate object key for storage
-        object_key = f"images/{filename}"
-        logger.info(f"Processing image: {filename}")
+        # generate random filename to avoid duplications
+        file_extension = os.path.splitext(filename)[1]
+        random_filename = f"{uuid.uuid4().hex}{file_extension}"
+        object_key = f"images/{random_filename}"
+        logger.info(f"Processing image: {filename} -> {random_filename}")
 
         # upload image to NCloud Object Storage
         file_obj = io.BytesIO(image_data)
