@@ -1,12 +1,12 @@
-import os
 import boto3
 from botocore.exceptions import ClientError
-from typing import Optional
+
+import os
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# NCloud Object Storage
 class NCloudStorage:
     def __init__(self):
         self.endpoint_url = 'https://kr.object.ncloudstorage.com'
@@ -23,12 +23,17 @@ class NCloudStorage:
             endpoint_url=self.endpoint_url,
             region_name=self.region_name,
             aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key
+            aws_secret_access_key=self.secret_key,
         )
 
     def upload_fileobj(self, file_obj, object_key: str) -> Optional[str]:
         try:
-            self.s3_client.upload_fileobj(file_obj, self.bucket_name, object_key)
+            self.s3_client.upload_fileobj(
+                file_obj,
+                self.bucket_name,
+                object_key,
+                ExtraArgs={'ACL': 'public-read'}
+            )
             logger.info(f"Successfully uploaded file object to {object_key}")
 
             url = f"{self.endpoint_url}/{self.bucket_name}/{object_key}"
