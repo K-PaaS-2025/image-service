@@ -1,48 +1,72 @@
-# Call Service API
+# 동물이 쓴 편지 생성 서비스
 
-노인 반려동물 입양 상담을 위한 음성 기반 API 서비스입니다.
-
-## Quick Start
-
-```bash
-# 1. 의존성 설치
-pip install fastapi uvicorn openai sqlalchemy mysql-connector-python python-dotenv
-
-# 2. 환경 변수 설정 (.env 파일 생성)
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=call_service_db
-OPENAI_API_KEY=your_openai_api_key
-
-# 3. MySQL 데이터베이스 생성
-CREATE DATABASE call_service_db;
-
-# 4. 서비스 실행 (포트 1110)
-uvicorn src.main:app --reload --port 1110
-
-# 5. API 문서 확인
-# http://localhost:1110
-```
+K-PaaS 2025를 위한 강아지 편지 생성 이미지 서비스입니다. 강아지 사진을 업로드하면 해당 강아지의 관점에서 작성된 따뜻한 편지를 생성해줍니다.
 
 ## 서비스 개요
 
-음성 입력을 통해 AI 상담사가 반려동물 입양 전 필수 정보를 수집하고, 입양 후 정기 상담을 제공하는 서비스입니다.
+이 서비스는 OpenAI의 GPT-4o-mini 비전 모델을 사용하여 강아지 이미지를 분석하고, 강아지의 외모와 표정을 바탕으로 개성있는 편지를 생성합니다. 생성된 이미지는 NCloud Object Storage에 안전하게 저장됩니다.
 
-- **기술스택**: FastAPI, OpenAI (Whisper, GPT-4o-mini, TTS), MySQL
-- **포트**: 1110
-- **베이스 URL**: `http://localhost:1110/call-service`
+### 주요 기능
+- 🐕 강아지 이미지 업로드 및 저장
+- 🤖 AI 기반 이미지 분석 및 편지 생성
+- 💌 강아지 관점의 따뜻한 한국어 편지 작성
+- ☁️ NCloud Object Storage 통합
+- 📝 구조화된 API 응답
 
-## API 명세
+## 설치 및 설정
+
+### 필수 요구사항
+- Python 3.12+
+- NCloud Object Storage 계정
+- OpenAI API 키
+
+### 1. 의존성 설치
+```bash
+pip install fastapi uvicorn openai boto3 python-dotenv
+```
+
+### 2. 환경 변수 설정
+`src/.env.local` 파일을 생성하고 다음 내용을 입력하세요:
+
+```bash
+# NCloud Object Storage 설정
+NCLOUD_ACCESS_KEY=your_access_key_here
+NCLOUD_SECRET_KEY=your_secret_key_here
+NCLOUD_BUCKET_NAME=your_bucket_name_here
+
+# OpenAI 설정
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+### 3. 서비스 실행
+
+**방법 1: uvicorn 직접 실행**
+```bash
+uvicorn src.main:app --reload --port 1110
+```
+
+**방법 2: 시작 스크립트 사용**
+```bash
+python start_server.py
+```
+
+서비스가 성공적으로 실행되면 다음 주소에서 접속할 수 있습니다:
+- **API 문서**: http://localhost:1110
+- **헬스 체크**: http://localhost:1110/image-service/health
+
+## API 사용법
+
+### 기본 URL
+```
+http://localhost:1110/image-service
+```
 
 ### 1. 헬스 체크
-
 ```http
 GET /health
 ```
 
-**응답**
+**응답 예시:**
 ```json
 {
   "status": 200,
@@ -52,290 +76,145 @@ GET /health
 }
 ```
 
-### 2. 초기 입양 상담
-
+### 2. 강아지 편지 생성
 ```http
-POST /initial-counseling
+POST /generate-letter
 Content-Type: multipart/form-data
 ```
 
-**요청 파라미터**
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `audio_file` | File | ✅ | 음성 파일 (webm, mp3, wav) |
-| `user_id` | String | ✅ | 사용자 고유 ID |
-| `session_id` | String | ❌ | 세션 ID (없으면 자동 생성) |
-| `collected_info` | String | ❌ | 기존 수집 정보 JSON (기본값: "{}") |
-| `return_audio` | Boolean | ❌ | 음성 응답 반환 여부 (기본값: true) |
+**입력 파라미터:**
+- `file`: 강아지 이미지 파일 (JPG, PNG 등)
 
-**응답**
-```json
-{
-  "status": 200,
-  "status_text": "SUCCESS",
-  "data": {
-    "user_id": "user123",
-    "session_id": "uuid-string",
-    "user_text": "사용자 음성을 텍스트로 변환한 내용",
-    "assistant_text": "AI 상담사 응답 텍스트",
-    "assistant_audio_base64": "base64로 인코딩된 음성 데이터",
-    "collected_info": {
-      "home_size": "25평 아파트",
-      "pet_experience": "강아지 키워본 경험 있음"
-    },
-    "is_info_complete": false,
-    "conversation_history": [...]
-  },
-  "message": "Initial counseling processed successfully"
-}
-```
-
-### 3. 입양 후 정기 상담
-
-```http
-POST /post-adoption-checkup
-Content-Type: multipart/form-data
-```
-
-**요청 파라미터**
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `audio_file` | File | ✅ | 음성 파일 |
-| `user_id` | String | ✅ | 사용자 고유 ID |
-| `session_id` | String | ❌ | 세션 ID |
-| `pet_info` | String | ❌ | 반려동물 정보 JSON (기본값: "{}") |
-| `return_audio` | Boolean | ❌ | 음성 응답 반환 여부 (기본값: true) |
-
-**응답**
-```json
-{
-  "status": 200,
-  "status_text": "SUCCESS",
-  "data": {
-    "user_id": "user123",
-    "session_id": "uuid-string",
-    "user_text": "사용자 음성 내용",
-    "assistant_text": "상담사 응답",
-    "assistant_audio_base64": "음성 데이터",
-    "health_check": {
-      "elderly_physical": "건강 상태 양호",
-      "pet_health": "반려견 건강함",
-      "needs_attention": false
-    },
-    "sentiment": "긍정적",
-    "conversation_history": [...]
-  },
-  "message": "Regular checkup processed successfully"
-}
-```
-
-### 4. 세션 종료
-
-```http
-POST /end-session
-Content-Type: multipart/form-data
-```
-
-**요청 파라미터**
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `user_id` | String | ✅ | 사용자 고유 ID |
-| `session_id` | String | ✅ | 종료할 세션 ID |
-
-**응답**
-```json
-{
-  "status": 200,
-  "status_text": "SUCCESS",
-  "data": {
-    "session_id": "uuid-string",
-    "saved": true
-  },
-  "message": "Session successfully ended and saved"
-}
-```
-
-## 수집 정보
-
-### 초기 상담 수집 항목
-- `home_size`: 집 크기 (평수, 주택 형태)
-- `mobility_health`: 거동 및 건강 상태
-- `pet_experience`: 반려동물 경험
-- `time_away`: 하루 평균 외출 시간
-- `living_with`: 동거인 정보
-- `allergies`: 알레르기 유무
-
-### 정기 상담 분석 항목
-- `elderly_physical`: 어르신 신체 건강
-- `elderly_mental`: 어르신 정신 건강
-- `pet_health`: 반려견 건강 상태
-- `pet_behavior`: 반려견 행동 특이사항
-- `daily_activities`: 일상 활동
-- `positive_effects`: 긍정적 변화
-- `needs_attention`: 주의 필요 여부
-
-## 오류 코드
-
-| 코드 | 설명 |
-|------|------|
-| 400 | 잘못된 요청 (빈 세션, 파라미터 오류) |
-| 404 | 세션을 찾을 수 없음 |
-| 500 | 서버 오류 (OpenAI API, DB 연결 실패) |
-
-## 개발자 가이드
-
-### 테스트 예시 (Java)
-
+**요청 예시 (Java):**
 ```java
 import java.io.*;
-import java.net.URI;
 import java.net.http.*;
 import java.nio.file.*;
 
-public class CallServiceClient {
-    private static final String BASE_URL = "http://localhost:1110/call-service";
-    private static final HttpClient client = HttpClient.newHttpClient();
-
-    // 1. 헬스 체크
-    public static void healthCheck() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(BASE_URL + "/health"))
-            .GET()
-            .build();
-
-        HttpResponse<String> response = client.send(request,
-            HttpResponse.BodyHandlers.ofString());
-        System.out.println("Health Check: " + response.body());
-    }
-
-    // 2. 초기 상담 테스트
-    public static void initialCounseling(String audioFilePath) throws Exception {
-        String boundary = "----boundary" + System.currentTimeMillis();
-        String CRLF = "\r\n";
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-        // audio_file
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"audio_file\"; filename=\"test_audio.webm\"" + CRLF).getBytes());
-        baos.write(("Content-Type: audio/webm" + CRLF + CRLF).getBytes());
-        baos.write(Files.readAllBytes(Paths.get(audioFilePath)));
-        baos.write(CRLF.getBytes());
-
-        // user_id
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"user_id\"" + CRLF + CRLF).getBytes());
-        baos.write("test_user_123".getBytes());
-        baos.write(CRLF.getBytes());
-
-        // return_audio
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"return_audio\"" + CRLF + CRLF).getBytes());
-        baos.write("true".getBytes());
-        baos.write((CRLF + "--" + boundary + "--" + CRLF).getBytes());
-
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(BASE_URL + "/initial-counseling"))
-            .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-            .POST(HttpRequest.BodyPublishers.ofByteArray(baos.toByteArray()))
-            .build();
-
-        HttpResponse<String> response = client.send(request,
-            HttpResponse.BodyHandlers.ofString());
-        System.out.println("Initial Counseling: " + response.body());
-    }
-
-    // 3. 정기 상담 테스트
-    public static void postAdoptionCheckup(String audioFilePath) throws Exception {
-        String boundary = "----boundary" + System.currentTimeMillis();
-        String CRLF = "\r\n";
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-        // audio_file
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"audio_file\"; filename=\"checkup_audio.webm\"" + CRLF).getBytes());
-        baos.write(("Content-Type: audio/webm" + CRLF + CRLF).getBytes());
-        baos.write(Files.readAllBytes(Paths.get(audioFilePath)));
-        baos.write(CRLF.getBytes());
-
-        // user_id
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"user_id\"" + CRLF + CRLF).getBytes());
-        baos.write("test_user_123".getBytes());
-        baos.write(CRLF.getBytes());
-
-        // pet_info
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"pet_info\"" + CRLF + CRLF).getBytes());
-        baos.write("{\"name\":\"멍멍이\",\"breed\":\"골든리트리버\"}".getBytes());
-        baos.write((CRLF + "--" + boundary + "--" + CRLF).getBytes());
-
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(BASE_URL + "/post-adoption-checkup"))
-            .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-            .POST(HttpRequest.BodyPublishers.ofByteArray(baos.toByteArray()))
-            .build();
-
-        HttpResponse<String> response = client.send(request,
-            HttpResponse.BodyHandlers.ofString());
-        System.out.println("Post Adoption Checkup: " + response.body());
-    }
-
-    // 4. 세션 종료
-    public static void endSession(String sessionId) throws Exception {
-        String boundary = "----boundary" + System.currentTimeMillis();
-        String CRLF = "\r\n";
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-        // user_id
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"user_id\"" + CRLF + CRLF).getBytes());
-        baos.write("test_user_123".getBytes());
-        baos.write(CRLF.getBytes());
-
-        // session_id
-        baos.write(("--" + boundary + CRLF).getBytes());
-        baos.write(("Content-Disposition: form-data; name=\"session_id\"" + CRLF + CRLF).getBytes());
-        baos.write(sessionId.getBytes());
-        baos.write((CRLF + "--" + boundary + "--" + CRLF).getBytes());
-
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(BASE_URL + "/end-session"))
-            .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-            .POST(HttpRequest.BodyPublishers.ofByteArray(baos.toByteArray()))
-            .build();
-
-        HttpResponse<String> response = client.send(request,
-            HttpResponse.BodyHandlers.ofString());
-        System.out.println("End Session: " + response.body());
-    }
-
-    // 사용 예시
+public class DogLetterClient {
     public static void main(String[] args) throws Exception {
-        healthCheck();
-        initialCounseling("test_audio.webm");
-        postAdoptionCheckup("checkup_audio.webm");
-        endSession("your_session_id");
+        String url = "http://localhost:1110/image-service/generate-letter";
+        Path imagePath = Paths.get("my_dog.jpg");
+
+        // 멀티파트 바디 생성
+        String boundary = "----boundary" + System.currentTimeMillis();
+        String CRLF = "\r\n";
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(("--" + boundary + CRLF).getBytes());
+        baos.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" +
+                   imagePath.getFileName() + "\"" + CRLF).getBytes());
+        baos.write(("Content-Type: image/jpeg" + CRLF + CRLF).getBytes());
+        baos.write(Files.readAllBytes(imagePath));
+        baos.write((CRLF + "--" + boundary + "--" + CRLF).getBytes());
+
+        // HTTP 요청 생성
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+            .POST(HttpRequest.BodyPublishers.ofByteArray(baos.toByteArray()))
+            .build();
+
+        // 요청 전송 및 응답 처리
+        HttpResponse<String> response = client.send(request,
+            HttpResponse.BodyHandlers.ofString());
+
+        System.out.println("Status: " + response.statusCode());
+        System.out.println("Response: " + response.body());
     }
 }
 ```
 
-### 프로젝트 구조
-```
-src/
-├── main.py              # FastAPI 앱 실행
-├── __init__.py          # APIResponse, APIException
-├── service/router.py    # API 엔드포인트
-├── model/openai_client.py # OpenAI 클라이언트
-└── data/database.py     # MySQL 모델
+**응답 예시:**
+```json
+{
+  "status": 200,
+  "status_text": "OK",
+  "data": {
+    "image_url": "https://kr.object.ncloudstorage.com/contest21/images/a1b2c3d4...f6.jpg",
+    "object_key": "images/a1b2c3d4e5f6789012345678901234ab.jpg",
+    "filename": "my_dog.jpg",
+    "letter": "사랑하는 엄마에게,\n\n안녕하세요! 저는 여기 햇살 좋은 곳에 앉아있어요..."
+  },
+  "message": "Letter generated successfully"
+}
 ```
 
-### 주요 로그 확인
-```bash
-# 서비스 실행 후 로그에서 확인할 내용:
-# - "Database connection established" (DB 연결 성공)
-# - "OpenAI client initialized successfully" (OpenAI 연결 성공)
-# - "Processing initial counseling - user: xxx" (요청 처리)
+## 입력 및 출력
+
+### 입력
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| file | File | ✅ | 강아지 이미지 파일 (JPG, PNG, GIF 등) |
+
+### 출력
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| status | Integer | HTTP 상태 코드 (200: 성공) |
+| status_text | String | 상태 메시지 |
+| data.image_url | String | 업로드된 이미지의 공개 URL |
+| data.object_key | String | 스토리지 내 객체 경로 |
+| data.filename | String | 원본 파일명 |
+| data.letter | String | 생성된 한국어 편지 내용 |
+| message | String | 처리 결과 메시지 |
+
+## 아키텍처
+
 ```
+src/
+├── main.py              # FastAPI 애플리케이션 엔트리포인트
+├── .env.local          # 환경 변수
+├── service/
+│   ├── router.py       # API 라우터 및 엔드포인트
+│   └── service.py      # 비즈니스 로직
+├── model/
+│   ├── __init__.py     # OpenAI 클라이언트 초기화
+│   └── openai_client.py # OpenAI 클라이언트 클래스
+└── data/
+    ├── __init__.py     # 스토리지 초기화
+    └── storage.py      # NCloud Object Storage 클라이언트
+```
+
+## 처리 흐름
+
+1. **이미지 업로드**: 사용자가 강아지 이미지를 업로드
+2. **파일 검증**: 이미지 파일 타입 검증
+3. **랜덤 파일명 생성**: UUID를 사용한 고유 파일명 생성
+4. **스토리지 저장**: NCloud Object Storage에 이미지 저장
+5. **AI 분석**: OpenAI GPT-4o-mini로 이미지 분석
+6. **편지 생성**: 강아지 관점의 한국어 편지 생성
+7. **결과 반환**: 이미지 URL과 편지 내용 반환
+
+## 로깅
+
+서비스는 구조화된 로깅을 제공합니다:
+
+```
+형식: %(asctime)s [%(levelname)s] %(name)s: %(message)s
+레벨: INFO
+```
+
+**로그 예시:**
+```
+2025-10-05 22:26:43,336 [INFO] src.service.service: Processing image: dog.jpg -> a1b2c3d4e5f6789012345678901234ab.jpg
+2025-10-05 22:26:43,835 [INFO] src.data.storage: Successfully uploaded file object to images/a1b2c3d4e5f6789012345678901234ab.jpg
+2025-10-05 22:26:47,225 [INFO] src.model.openai_client: Generated letter from image URL successfully
+```
+
+## 오류 처리
+
+### 일반적인 오류
+- **400**: 잘못된 파일 형식 (이미지가 아닌 파일)
+- **500**: 이미지 업로드 실패 또는 AI 처리 실패
+
+### 환경 설정 오류
+- NCloud 인증 정보 누락: `Missing required NCloud storage credentials`
+- OpenAI API 키 누락: `Missing OPENAI_API_KEY environment variable`
+
+## 개발 정보
+
+- **Framework**: FastAPI
+- **AI Model**: OpenAI GPT-4o-mini (비전)
+- **Storage**: NCloud Object Storage (S3 호환)
+- **Language**: Python 3.12+
